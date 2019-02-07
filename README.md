@@ -255,6 +255,26 @@ This will automatically request a **review from other developers** who can then 
 * **fortress**: user of an ancient release like 0.4.3 as found on Raspberry Pie, Debian, Ubuntu
 * **katze, sokoke, tabby**: legacy API names and coincidentally cat breeds
 
+# WebDriver automation support
+
+Scripting of the browser is supported through Selenium via the WebKitGTK WebDriver:
+
+    pip install --user selenium
+
+Once installed, getting started is just a matter of connecting through the Python API:
+
+    #!/usr/bin/env python3
+
+    from selenium import webdriver
+
+    options = webdriver.WebKitGTKOptions()
+    options.binary_location = 'midori'
+    options.add_argument('--automation-mode')
+    options.set_capability('browserName', 'Midori')
+
+    driver = webdriver.WebKitGTK(options=options, desired_capabilities={})
+    driver.get('https://www.midori-browser.org')
+
 # Midori for Android
 
 The easiest way to build, develop and test Midori on Android is with [Android Studio](https://developer.android.com/studio/#downloads) ([snap](https://snapcraft.io/android-studio)).

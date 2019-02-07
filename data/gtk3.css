@@ -90,6 +90,16 @@ headerbar {
   color: #eee;
 }
 
+/* Automation session */
+.automation .split_headerbar {
+  background: transparent -gtk-icontheme("system-run-symbolic") 80% 30%/auto 160% no-repeat, linear-gradient(to left, #CB4B16 8%, #DC322F 25%);
+  color: rgba(0, 0, 0, 0.3);
+}
+.automation .split_headerbar * {
+  background: transparent;
+  color: #eee;
+}
+
 /* Overlay statusbar */
 statusbar button {
   margin: 4px;

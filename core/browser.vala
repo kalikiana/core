@@ -324,6 +324,9 @@ namespace Midori {
             if (web_context.is_ephemeral ()) {
                 get_style_context ().add_class ("incognito");
             }
+            if (web_context.is_automation_allowed ()) {
+                get_style_context ().add_class ("automation");
+            }
 
             if (settings.last_window_width > 0 && settings.last_window_height > 0) {
                 default_width = settings.last_window_width;

@@ -19,6 +19,7 @@ namespace Midori {
         public File? exec_path { get; protected set; default = null; }
 
         static string? app = null;
+        static bool automation = false;
         [CCode (array_length = false, array_null_terminated = true)]
         static string[]? execute = null;
         static bool help_execute = false;
@@ -26,6 +27,7 @@ namespace Midori {
         static bool version = false;
         const OptionEntry[] options = {
             { "app", 'a', 0, OptionArg.STRING, ref app, N_("Run ADDRESS as a web application"), N_("ADDRESS") },
+            { "automation-mode", 0, 0, OptionArg.NONE, ref automation, "Enable Selenium via WebKitGTK WebDriver", null },
             { "execute", 'e', 0, OptionArg.STRING_ARRAY, ref execute, N_("Execute the specified command"), null },
             { "help-execute", 0, 0, OptionArg.NONE, ref help_execute, N_("List available commands to execute with -e/ --execute"), null },
             { "private", 'p', 0, OptionArg.NONE, ref incognito, N_("Private browsing, no changes are saved"), null },
@@ -407,6 +409,7 @@ namespace Midori {
 
             // Propagate options processed in the primary instance
             options.insert_value ("app", app ?? "");
+            options.insert_value ("automation", automation);
             options.insert_value ("execute", execute);
             options.insert_value ("help-execute", help_execute);
             options.insert_value ("private", incognito);
@@ -419,6 +422,7 @@ namespace Midori {
             // Retrieve values for options passed from another process
             var options = command_line.get_options_dict ();
             app = options.lookup_value ("app", VariantType.STRING).get_string ();
+            automation = options.lookup_value ("automation", VariantType.BOOLEAN).get_boolean ();
             execute = options.lookup_value ("execute", VariantType.STRING_ARRAY).dup_strv ();
             help_execute = options.lookup_value ("help-execute", VariantType.BOOLEAN).get_boolean ();
             incognito = options.lookup_value ("private", VariantType.BOOLEAN).get_boolean ();
@@ -433,6 +437,33 @@ namespace Midori {
                 foreach (string action in browser.list_actions ()) {
                     command_line.print ("%s\n", action);
                 }
+            }
+
+            // Create automation session for Selenium WebKitGTK WebDriver
+            if (automation) {
+                debug ("Entering automation session for Selenium WebKitGTK WebDriver");
+                var web_context = new WebKit.WebContext.ephemeral ();
+                web_context.set_automation_allowed (true);
+                web_context.automation_started.connect ((session) => {
+                    debug ("Exposing web context for automation");
+                    var info = new WebKit.ApplicationInfo ();
+                    info.set_name ("Midori");
+                    info.set_version (8, 0, 0);
+                    session.set_application_info (info);
+                    session.create_web_view.connect (() => {
+                        stdout.printf ("Creating browser for automation");
+                        var browser = Object.new (typeof (Browser),
+                                                  "application", this,
+                                                  "web_context", web_context,
+                                                  "is_locked", true) as Browser;
+                        var tab = new Tab (null, web_context, "http://example.com");
+                        tab.pinned = true;
+                        browser.add (tab);
+                        browser.show ();
+                        return tab;
+                    });
+                });
+                return  0;
             }
 
             if (app != "") {

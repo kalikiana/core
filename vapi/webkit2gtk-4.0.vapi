@@ -38,7 +38,7 @@ namespace WebKit {
 		public unowned string get_id ();
 		public void set_application_info (WebKit.ApplicationInfo info);
 		public string id { get; construct; }
-		public signal unowned WebKit.WebView create_web_view ();
+		public signal WebKit.WebView create_web_view ();
 	}
 	[CCode (cheader_filename = "webkit2/webkit2.h", type_id = "webkit_back_forward_list_get_type ()")]
 	public class BackForwardList : GLib.Object {
