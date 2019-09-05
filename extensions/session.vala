@@ -298,12 +298,92 @@ namespace Tabby {
         }
     }
 
+    public class SwitcherButton : Gtk.MenuButton {
+        HashTable<Gtk.Widget, Gtk.Button> buttons;
+        public Gtk.Stack? stack { get; set; }
+        Gtk.Box box;
+        Gtk.Label title;
+
+        construct {
+            visible = true;
+            buttons = new HashTable<Gtk.Widget, Gtk.Button> (direct_hash, direct_equal);
+            notify["stack"].connect ((pspec) => {
+                stack.add.connect ((widget) => {
+                    if (popover == null) {
+                        var title_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+                        title = new Gtk.Label (null);
+                        title.get_style_context ().add_class ("title");
+                        title_box.pack_start (title, true, true, 6);
+                        var icon = new Gtk.Image.from_icon_name ("pan-down-symbolic", Gtk.IconSize.BUTTON);
+                        icon.use_fallback = true;
+                        title_box.pack_end (icon, false, true, 0);
+                        title_box.show_all ();
+                        add (title_box);
+
+                        var popover = new Gtk.Popover (this);
+                        box = new Gtk.Box (Gtk.Orientation.VERTICAL, 6);
+                        box.show ();
+                        popover.add (box);
+                        this.popover = popover;
+                    }
+                    if (buttons.lookup (widget) == null) {
+                        var button = new Gtk.RadioButton (null);
+                        button.set_mode (false);
+                        if (box.get_children () != null) {
+                            button.join_group (box.get_children ().data as Gtk.RadioButton);
+                        }
+                        string? label = null;
+                        stack.child_get (widget, "title", out label);
+                        button.label = label;
+                        buttons.insert (widget, button);
+                        button.clicked.connect (() => {
+                            stack.visible_child = widget;
+                        });
+                        button.show ();
+                        box.add (button);
+                        if (stack.visible_child == widget) {
+                            title.label = label;
+                        }
+                    }
+                });
+                ((Gtk.Widget)stack).child_notify["title"].connect ((widget, pspec) => {
+                    var button = buttons.lookup (stack.visible_child);
+                    if (button != null) {
+                        string? label = null;
+                        stack.child_get (widget, "title", out label);
+                        button.label = label;
+                        if (stack.visible_child == widget) {
+                            title.label = label;
+                        }
+                    }
+                });
+                stack.notify["visible-child"].connect (visible_child_changed);
+                stack.remove.connect ((widget) => {
+                    buttons.take (widget).destroy ();
+                });
+            });
+        }
+
+        public SwitcherButton (Gtk.Stack tabs) {
+            stack = tabs;
+        }
+
+        void visible_child_changed (ParamSpec pspec) {
+            var button = buttons.lookup (stack.visible_child);
+            if (button != null) {
+                title.label = button.label;
+            }
+        }
+    }
+
     public class Session : Peas.ExtensionBase, Midori.BrowserActivatable {
         public Midori.Browser browser { owned get; set; }
 
         static bool session_restored = false;
 
         public void activate () {
+            browser.add_button (new SwitcherButton (browser.tabs));
+
             // Don't track locked (app) or private windows
             if (browser.is_locked || browser.web_context.is_ephemeral ()) {
                 return;
