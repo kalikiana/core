@@ -45,6 +45,7 @@ namespace Bookmarks {
             string sqlcmd = """
                 SELECT id, uri, title, visit_count AS ct FROM %s
                 %s
+                WHERE uri <> ''
                 GROUP BY uri
                 ORDER BY ct DESC LIMIT :limit
                 """.printf (table, where);
@@ -92,6 +93,7 @@ namespace Bookmarks {
                     ":uri", typeof (string), item.uri,
                     ":title", typeof (string), item.title);
                 if (statement.exec ()) {
+                    // FIXME: items_changed (_items.index (item), 1, 0);
                     return true;
                 }
             } catch (Error error) {
@@ -111,6 +113,7 @@ namespace Bookmarks {
                 ":title", typeof (string), item.title);
             if (statement.exec ()) {
                 item.id = statement.row_id ();
+                items_changed (get_n_items (), 1, 0);
                 return true;
             }
             return false;
@@ -192,6 +195,38 @@ namespace Bookmarks {
     public class Frontend : Object, Midori.BrowserActivatable {
         public Midori.Browser browser { owned get; set; }
 
+        Gtk.Widget create_button (Object item) {
+            var bookmark = item as Midori.DatabaseItem;
+            var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 4);
+            box.hexpand = true;
+            var label = new Gtk.Label (bookmark.title ?? bookmark.uri);
+            label.ellipsize = Pango.EllipsizeMode.END;
+            // As per docs, when ellipsized and expanded max width is the minimum
+            label.width_chars = 8;
+            label.max_width_chars = 500;
+            box.add (label);
+            var icon = new Midori.Favicon ();
+            string layout = Gtk.Settings.get_default ().gtk_decoration_layout;
+            if (layout.index_of ("c") < layout.index_of (":")) {
+                box.pack_start (icon);
+            } else {
+                box.pack_end (icon);
+            }
+            var button = new Gtk.Button ();
+            button.relief = Gtk.ReliefStyle.NONE;
+            button.focus_on_click = false;
+            button.add (box);
+            if (bookmark.uri != null && bookmark.uri != "") {
+                box.tooltip_text = bookmark.uri;
+                icon.uri = bookmark.uri;
+                button.clicked.connect (() => { browser.tab.load_uri (bookmark.uri); });
+            /* FIXME: } else {
+                icon.gicon = new ThemedIcon.with_default_fallbacks ("folder-symbolic"); */
+            }
+            button.show_all ();
+            return button;
+        }
+
         public void activate () {
             // No bookmarks in app mode
             if (browser.is_locked) {
@@ -199,6 +234,58 @@ namespace Bookmarks {
             }
 
             browser.add_button (new Button (browser));
+
+            try {
+                var toolbar = new Gtk.FlowBox ();
+                toolbar.get_style_context ().add_class ("inline-toolbar");
+                // To get horizontal, we need to use vertical
+                toolbar.orientation = Gtk.Orientation.VERTICAL;
+                toolbar.bind_model (BookmarksDatabase.get_default (), create_button);
+                toolbar.show ();
+                var scrolled = new Gtk.ScrolledWindow (null, null);
+                scrolled.hscrollbar_policy = Gtk.PolicyType.EXTERNAL;
+                scrolled.vscrollbar_policy = Gtk.PolicyType.NEVER;
+                scrolled.add (toolbar);
+                scrolled.halign = Gtk.Align.FILL;
+                scrolled.valign = Gtk.Align.START;
+                browser.overlay.add_overlay (scrolled);
+                // Only show bookmarks in new tab
+                browser.notify["uri"].connect (() => {
+                    scrolled.visible = browser.uri.has_prefix ("internal");
+                });
+            } catch (Midori.DatabaseError error) {
+                critical ("Failed to add bookmarks toolbar: %s", error.message);
+            }
+
+            try {
+                var panel = new Gtk.ListBox ();
+                panel.bind_model (BookmarksDatabase.get_default (), create_button);
+                panel.show ();
+                var scrolled = new Gtk.ScrolledWindow (null, null);
+                scrolled.hscrollbar_policy = Gtk.PolicyType.EXTERNAL;
+                scrolled.vscrollbar_policy = Gtk.PolicyType.AUTOMATIC;
+                scrolled.add (panel);
+                scrolled.show ();
+                browser.add_panel (scrolled);
+                scrolled.parent.child_set (scrolled, "title", _("Bookmarks"), "icon-name", "user-bookmarks-symbolic");
+            } catch (Midori.DatabaseError error) {
+                critical ("Failed to add bookmarks panel: %s", error.message);
+            }
+
+            try {
+                var panel = new Gtk.ListBox ();
+                panel.bind_model (Midori.HistoryDatabase.get_default (), create_button);
+                panel.show ();
+                var scrolled = new Gtk.ScrolledWindow (null, null);
+                scrolled.hscrollbar_policy = Gtk.PolicyType.EXTERNAL;
+                scrolled.vscrollbar_policy = Gtk.PolicyType.AUTOMATIC;
+                scrolled.add (panel);
+                scrolled.show ();
+                browser.add_panel (scrolled);
+                scrolled.parent.child_set (scrolled, "title", _("History"), "icon-name", "document-open-recent-symbolic");
+            } catch (Midori.DatabaseError error) {
+                critical ("Failed to add bookmarks panel: %s", error.message);
+            }
         }
     }
 

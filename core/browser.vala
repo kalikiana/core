@@ -229,9 +229,9 @@ namespace Midori {
             panel_action.change_state.connect (panel_activated);
             add_action (panel_action);
             // Reveal panel toggle after panels are added
-            panel.add.connect ((widget) => {
-                panel_toggle.show ();
-                panel_action.set_enabled (true);
+            panel.notify["visible-child"].connect (() => {
+                panel_toggle.visible = panel.visible_child != null;
+                panel_action.set_enabled (panel.visible_child != null);
             });
             // Page actions
             var go_back = new SimpleAction ("go-back", null);
